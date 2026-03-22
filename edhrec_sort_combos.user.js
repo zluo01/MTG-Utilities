@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name        Sort Combo Entries
 // @namespace   sort-combos
-// @match       *://*/*
-// @version     1.0
+// @match       *://edhrec.com/combos/*
+// @version     1.1
 // @description Sort ComboView_comboEntry elements by card combo count, then by percentage
 // @grant       none
 // ==/UserScript==
@@ -11,13 +11,11 @@
   'use strict';
 
   function getCardCount(entry) {
-    // Look for text like "2 card combo"
     const match = entry.textContent.match(/(\d+)\s+card combo/);
     return match ? parseInt(match[1], 10) : Infinity;
   }
 
   function getPercentage(entry) {
-    // Look for text like "(7.16% of ...)"
     const match = entry.textContent.match(/\(([\d.]+)%\s+of\s+/);
     return match ? parseFloat(match[1]) : -1;
   }
@@ -28,50 +26,64 @@
   }
 
   function sortCombos() {
-    removeUnwanted();
-
-    // Find the parent container that holds combo entries
     const allEntries = document.querySelectorAll('div[class*="ComboView_comboEntry"]');
-    if (allEntries.length < 2) return;
+    if (allEntries.length < 2) return false;
 
     const parent = allEntries[0].parentElement;
-    if (!parent) return;
+    if (!parent) return false;
+
+    removeUnwanted();
 
     const entries = Array.from(allEntries);
 
     entries.sort((a, b) => {
       const cardA = getCardCount(a);
       const cardB = getCardCount(b);
-      if (cardA !== cardB) return cardA - cardB; // fewer cards first
+      if (cardA !== cardB) return cardA - cardB;
 
       const pctA = getPercentage(a);
       const pctB = getPercentage(b);
-      return pctB - pctA; // higher percentage first
+      return pctB - pctA;
     });
 
-    // Re-append in sorted order
     entries.forEach((entry) => parent.appendChild(entry));
+    return true;
   }
 
-  // Run after page loads; use MutationObserver for dynamically loaded content
   function init() {
     sortCombos();
 
-    // Re-sort when new content is added (e.g., infinite scroll / SPA navigation)
+    let debounceTimer;
     const observer = new MutationObserver(() => {
-      observer.disconnect(); // pause to avoid loops
-      sortCombos();
-      observe();
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        observer.disconnect();
+        sortCombos();
+        observe();
+      }, 200);
     });
 
     function observe() {
-      const target = document.querySelector('div[class*="ComboView_comboEntry"]')?.parentElement;
+      const target = document.querySelector('div[class*="ComboView_comboEntry"]')?.parentElement
+        || document.querySelector('div[class*="ComboView"]');
       if (target) {
-        observer.observe(target, { childList: true });
+        observer.observe(target, { childList: true, subtree: true });
       }
     }
 
     observe();
+
+    // Re-initialize on SPA navigation
+    const navObserver = new MutationObserver(() => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (sortCombos()) {
+          observer.disconnect();
+          observe();
+        }
+      }, 500);
+    });
+    navObserver.observe(document.body, { childList: true, subtree: true });
   }
 
   if (document.readyState === 'loading') {
