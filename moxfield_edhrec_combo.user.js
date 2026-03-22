@@ -22,12 +22,12 @@
 
         get(key) {
             const item = this.cache.get(key);
-            if (!item) return null;
+            if (!item) return undefined;
 
             // Check if item has expired
             if (Date.now() - item.timestamp > this.ttl) {
                 this.cache.delete(key);
-                return null;
+                return undefined;
             }
             return item.value;
         }
@@ -114,7 +114,7 @@
     async function fetchComboData(cardName) {
         // Check cache first
         const cachedData = cache.get(cardName);
-        if (cachedData) {
+        if (cachedData !== undefined) {
             return cachedData;
         }
 
@@ -201,9 +201,6 @@
             font-weight: 600;
             line-height: 1.5;
         `;
-        comboDisplay.appendChild(headerElement);
-
-        // Create combo list
         comboDisplay.appendChild(headerElement);
 
         const comboSection = document.createElement('div')
